@@ -270,6 +270,7 @@ BarWidget {
     }
 
     var ids = []
+    void root.placementRevision // re-run after a refresh of workspace placement
     for (var i = 0; i < root.rows.length; i++) {
       var row = root.rows[i]
       if (row.monitor === root.screenName) {
@@ -282,12 +283,43 @@ BarWidget {
 
       var live = root.workspaceById(row.id)
       var on = live && live.monitor ? String(live.monitor.name || "") : ""
+      // After a monitor is switched off, Quickshell can keep a stale or empty
+      // monitor here; the refreshed IPC data has the real one.
+      if (live && (on === "" || !root.screenPresent(on)) && live.lastIpcObject && live.lastIpcObject.monitor)
+        on = String(live.lastIpcObject.monitor)
       if (on === root.screenName || (on === "" && root.isFirstScreen)) ids.push(row.id)
     }
     // Config order, not id order: the editor's list is the running order, so
     // dragging a row there is what moves a workspace along the bar. Sorting
     // here would quietly undo every reorder.
     return ids
+  }
+
+  // Monitors switched on/off and workspaces moved between them: re-read
+  // Hyprland's workspace list so each bar shows what really lives on it.
+  property int placementRevision: 0
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      var name = String(event.name)
+      if (name.indexOf("monitoradded") === 0 || name.indexOf("monitorremoved") === 0
+          || name.indexOf("moveworkspace") === 0)
+        placementTimer.restart()
+    }
+  }
+  Timer {
+    id: placementTimer
+    interval: 300
+    onTriggered: {
+      Hyprland.refreshMonitors()
+      Hyprland.refreshWorkspaces()
+      placementBumpTimer.restart()
+    }
+  }
+  Timer {
+    id: placementBumpTimer
+    interval: 300
+    onTriggered: root.placementRevision++
   }
 
   function screenPresent(name) {
