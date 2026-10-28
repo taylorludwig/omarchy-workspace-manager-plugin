@@ -276,7 +276,9 @@ BarWidget {
         ids.push(row.id)
         continue
       }
-      if (row.monitor !== "") continue
+      // Pinned to a monitor that is switched off (monitor-mode): treat it as
+      // unpinned, so it shows on whichever bar it lives on for now.
+      if (row.monitor !== "" && root.screenPresent(row.monitor)) continue
 
       var live = root.workspaceById(row.id)
       var on = live && live.monitor ? String(live.monitor.name || "") : ""
@@ -286,6 +288,13 @@ BarWidget {
     // dragging a row there is what moves a workspace along the bar. Sorting
     // here would quietly undo every reorder.
     return ids
+  }
+
+  function screenPresent(name) {
+    var screens = Quickshell.screens
+    for (var i = 0; i < screens.length; i++)
+      if (String(screens[i].name || "") === name) return true
+    return false
   }
 
   function workspaceById(id) {
